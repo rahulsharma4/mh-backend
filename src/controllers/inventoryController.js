@@ -1,0 +1,111 @@
+const Inventory = require('../models/inventoryModel');
+
+// @desc    Get all inventory items
+// @route   GET /api/inventory
+// @access  Private
+const getInventoryItems = async (req, res) => {
+  try {
+    const items = await Inventory.find().sort({ createdAt: -1 });
+    res.status(200).json(items);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Get single inventory item
+// @route   GET /api/inventory/:id
+// @access  Private
+const getInventoryItem = async (req, res) => {
+  try {
+    const item = await Inventory.findById(req.params.id);
+    if (!item) {
+      return res.status(404).json({ message: 'Item not found' });
+    }
+    res.status(200).json(item);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Create new inventory item
+// @route   POST /api/inventory
+// @access  Private/Admin
+const createInventoryItem = async (req, res) => {
+  try {
+    const existingItem = await Inventory.findOne({ productId: req.body.productId });
+    if (existingItem) {
+      return res.status(400).json({ message: 'Product ID/SKU already exists' });
+    }
+
+    const itemData = {
+      ...req.body,
+      history: [{
+        action: 'INITIAL_STOCK',
+        quantityChange: req.body.quantity || 0,
+        remark: 'Initial stock added'
+      }]
+    };
+
+    const item = await Inventory.create(itemData);
+    res.status(201).json(item);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// @desc    Update inventory item
+// @route   PATCH /api/inventory/:id
+// @access  Private/Admin
+const updateInventoryItem = async (req, res) => {
+  try {
+    const item = await Inventory.findById(req.params.id);
+    if (!item) {
+      return res.status(404).json({ message: 'Item not found' });
+    }
+
+    const oldQuantity = item.quantity;
+    const newQuantity = req.body.quantity !== undefined ? req.body.quantity : oldQuantity;
+    
+    if (newQuantity !== oldQuantity) {
+      item.history.push({
+        action: 'MANUAL_ADJUSTMENT',
+        quantityChange: newQuantity - oldQuantity,
+        remark: `Stock manually updated by user`
+      });
+    }
+
+    // Update other fields
+    Object.keys(req.body).forEach(key => {
+      item[key] = req.body[key];
+    });
+
+    await item.save();
+
+    res.status(200).json(item);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// @desc    Delete inventory item
+// @route   DELETE /api/inventory/:id
+// @access  Private/Admin
+const deleteInventoryItem = async (req, res) => {
+  try {
+    const item = await Inventory.findByIdAndDelete(req.params.id);
+    if (!item) {
+      return res.status(404).json({ message: 'Item not found' });
+    }
+    res.status(200).json({ message: 'Item deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = {
+  getInventoryItems,
+  getInventoryItem,
+  createInventoryItem,
+  updateInventoryItem,
+  deleteInventoryItem,
+};
