@@ -16,23 +16,34 @@ const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
-// Enable CORS with dynamic origin for production
+// Enable CORS — supports comma-separated FRONTEND_URL on Render (e.g. https://mhsolutions.com,https://www.mhsolutions.com)
+const parseOrigins = (value) =>
+  (value || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
 app.use(cors({
   origin: function (origin, callback) {
     const allowedOrigins = [
-      process.env.FRONTEND_URL,
+      ...parseOrigins(process.env.FRONTEND_URL),
       'http://localhost:5173',
       'http://localhost:5174',
       'http://localhost:5175',
-      'https://mhsolutions.innovbitai.com'
-    ].filter(Boolean);
+      'https://mh-solution.innovbitai.com',
+      'https://www.mh-solution.innovbitai.com',
+      'https://mh-solutions.innovbitai.com',
+      'https://www.mh-solutions.innovbitai.com',
+      'https://mhsolutions.innovbitai.com',
+      'https://mhsolutions.com',
+      'https://www.mhsolutions.com'
+    ];
 
-    // If no origin (like mobile apps/curl) or it's in the list, allow it.
-    // As a fallback for easier deployment, if FRONTEND_URL is not set, allow any origin.
-    if (!origin || allowedOrigins.includes(origin) || !process.env.FRONTEND_URL) {
+    // Allow requests with no origin (mobile apps, curl, health checks)
+    if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      callback(new Error(`Not allowed by CORS: ${origin}`));
     }
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

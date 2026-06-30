@@ -79,27 +79,35 @@ const registerUser = async (req, res) => {
 // @route   GET /api/staff
 // @access  Private/Admin
 const getStaff = async (req, res) => {
-  const staff = await User.find({ 
-    role: { $in: ['staff', 'telecaller'] }, 
-    owner: req.user._id,
-    isDeleted: { $ne: true }
-  });
-  res.json(staff);
+  try {
+    const staff = await User.find({ 
+      role: { $in: ['staff', 'telecaller'] }, 
+      owner: req.user._id,
+      isDeleted: { $ne: true }
+    });
+    res.json(staff);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };
 
 // @desc    Delete staff (Soft Delete)
 // @route   DELETE /api/staff/:id
 // @access  Private/Admin
 const deleteStaff = async (req, res) => {
-  const user = await User.findById(req.params.id);
+  try {
+    const user = await User.findById(req.params.id);
 
-  if (user) {
-    user.isDeleted = true;
-    user.status = 'inactive';
-    await user.save();
-    res.json({ message: 'Staff member removed successfully (Data preserved)' });
-  } else {
-    res.status(404).json({ message: 'User not found' });
+    if (user) {
+      user.isDeleted = true;
+      user.status = 'inactive';
+      await user.save();
+      res.json({ message: 'Staff member removed successfully (Data preserved)' });
+    } else {
+      res.status(404).json({ message: 'User not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };
 
