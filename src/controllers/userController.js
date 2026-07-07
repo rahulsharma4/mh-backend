@@ -226,4 +226,52 @@ const updateStaff = async (req, res) => {
   }
 };
 
-module.exports = { authUser, registerUser, getStaff, deleteStaff, getStaffDetails, toggleStaffStatus, updateStaff };
+// @desc    Get telecaller stats
+// @route   GET /api/staff/telecaller-stats
+// @access  Private/Admin
+const getTelecallerStats = async (req, res) => {
+  try {
+    const telecallers = await User.find({ 
+      role: 'telecaller', 
+      isDeleted: { $ne: true },
+      owner: req.user._id
+    }).select('-password');
+
+    const Contact = require('../models/contactModel');
+
+    const stats = await Promise.all(telecallers.map(async (tc) => {
+      const contacts = await Contact.find({ assignedTo: tc._id });
+      
+      const statusCounts = {
+        'New': 0,
+        'No Answer': 0,
+        'Call Back': 0,
+        'Interested': 0,
+        'Not Interested': 0,
+        'Converted': 0
+      };
+
+      contacts.forEach(c => {
+        if (statusCounts[c.status] !== undefined) {
+          statusCounts[c.status]++;
+        }
+      });
+
+      return {
+        _id: tc._id,
+        name: tc.name,
+        email: tc.email,
+        phone: tc.phone,
+        status: tc.status,
+        totalLeads: contacts.length,
+        statusCounts
+      };
+    }));
+
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { authUser, registerUser, getStaff, deleteStaff, getStaffDetails, toggleStaffStatus, updateStaff, getTelecallerStats };
