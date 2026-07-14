@@ -32,6 +32,7 @@ const updateAdmin = async () => {
 
     adminUser.email = newEmail;
     adminUser.password = newPassword; // The pre-save hook will hash this
+    adminUser.tokenVersion = (adminUser.tokenVersion || 0) + 1; // Invalidate old sessions
 
     await adminUser.save();
     
