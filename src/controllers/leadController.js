@@ -108,9 +108,11 @@ const updateLead = async (req, res) => {
         lead.personalInfo = { ...lead.personalInfo, ...req.body.personalInfo };
       }
 
-      // Only admin can reassign leads
-      if (req.user.role === 'admin') {
-        lead.assignedTo = req.body.assignedTo || lead.assignedTo;
+      // Allow admin or telecaller to assign leads
+      if (req.user.role === 'admin' || req.user.role === 'telecaller') {
+        if (req.body.assignedTo !== undefined) {
+          lead.assignedTo = req.body.assignedTo || lead.assignedTo;
+        }
       }
 
       const isNewFollowUp = req.body.followUpDate && req.body.followUpDate !== lead.followUpDate?.toISOString();

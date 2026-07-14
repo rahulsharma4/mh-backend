@@ -193,7 +193,7 @@ const convertContactToLead = async (req, res) => {
       gstNumber: gstNumber || '',
       personalInfo: personalInfo || {},
       source: 'Telecalling',
-      assignedTo: null, // initially unassigned
+      assignedTo: req.body.assignedTo || null,
       createdBy: req.user._id,
       owner: req.user.role === 'admin' ? req.user._id : req.user.owner,
       history: [

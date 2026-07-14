@@ -80,9 +80,10 @@ const registerUser = async (req, res) => {
 // @access  Private/Admin
 const getStaff = async (req, res) => {
   try {
+    const ownerId = req.user.role === 'admin' ? req.user._id : req.user.owner;
     const staff = await User.find({ 
       role: { $in: ['staff', 'telecaller'] }, 
-      owner: req.user._id,
+      owner: ownerId,
       isDeleted: { $ne: true }
     });
     res.json(staff);

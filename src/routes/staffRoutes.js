@@ -4,7 +4,7 @@ const { getStaff, deleteStaff, registerUser, getStaffDetails, toggleStaffStatus,
 const { protect, admin } = require('../middleware/authMiddleware');
 
 router.route('/')
-  .get(protect, admin, getStaff)
+  .get(protect, getStaff)
   .post(protect, admin, registerUser);
 
 router.route('/telecaller-stats')
