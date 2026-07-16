@@ -241,7 +241,12 @@ const getTelecallerStats = async (req, res) => {
     const Contact = require('../models/contactModel');
 
     const stats = await Promise.all(telecallers.map(async (tc) => {
-      const contacts = await Contact.find({ assignedTo: tc._id });
+      const contacts = await Contact.find({ 
+        $or: [
+          { assignedTo: tc._id },
+          { 'statusHistory.updatedBy': tc._id }
+        ]
+      });
       
       const statusCounts = {
         'New': 0,
@@ -253,8 +258,18 @@ const getTelecallerStats = async (req, res) => {
       };
 
       contacts.forEach(c => {
-        if (statusCounts[c.status] !== undefined) {
-          statusCounts[c.status]++;
+        const tcUpdates = c.statusHistory.filter(h => h.updatedBy && h.updatedBy.toString() === tc._id.toString());
+        
+        if (tcUpdates.length > 0) {
+           tcUpdates.sort((a,b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+           const lastStatusByTc = tcUpdates[0].status;
+           if (statusCounts[lastStatusByTc] !== undefined) {
+             statusCounts[lastStatusByTc]++;
+           }
+        } else if (c.assignedTo && c.assignedTo.toString() === tc._id.toString()) {
+           if (statusCounts[c.status] !== undefined) {
+             statusCounts[c.status]++;
+           }
         }
       });
 

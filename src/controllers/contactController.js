@@ -130,21 +130,60 @@ const assignContacts = async (req, res) => {
       return res.status(400).json({ message: 'No contacts selected' });
     }
 
+    let telecallerName = 'Unassigned';
     if (assignedTo) {
       const User = require('../models/userModel');
       const telecaller = await User.findOne({ _id: assignedTo, role: 'telecaller', isDeleted: { $ne: true } });
       if (!telecaller) {
         return res.status(400).json({ message: 'Invalid telecaller selected' });
       }
+      telecallerName = telecaller.name;
     }
 
-    // Allow reassignment of contacts directly
+    const contacts = await Contact.find({ _id: { $in: contactIds }, owner: req.user._id });
+    
+    for (const contact of contacts) {
+      const oldAssignedTo = contact.assignedTo ? contact.assignedTo.toString() : null;
+      const newAssignedTo = assignedTo ? assignedTo.toString() : null;
 
-    const updateData = { assignedTo: assignedTo || null };
-    await Contact.updateMany(
-      { _id: { $in: contactIds }, owner: req.user._id },
-      { $set: updateData }
-    );
+      if (oldAssignedTo !== newAssignedTo) {
+        if (oldAssignedTo !== null && newAssignedTo !== null) {
+          // It's a reassignment
+          contact.status = 'New';
+          contact.remarks = `Reassigned to ${telecallerName} by Admin`;
+          contact.callBackDate = null;
+          contact.callBackNotified = false;
+          
+          contact.statusHistory.push({
+             status: 'New',
+             remarks: `Reassigned to ${telecallerName} by Admin`,
+             updatedBy: req.user._id,
+             updatedAt: new Date()
+          });
+        } else if (newAssignedTo !== null) {
+          // Initial assignment
+          contact.statusHistory.push({
+             status: contact.status,
+             remarks: `Assigned to ${telecallerName} by Admin`,
+             updatedBy: req.user._id,
+             updatedAt: new Date()
+          });
+        } else if (newAssignedTo === null) {
+          // Unassigned
+          contact.statusHistory.push({
+             status: contact.status,
+             remarks: `Unassigned by Admin`,
+             updatedBy: req.user._id,
+             updatedAt: new Date()
+          });
+        }
+        
+        contact.assignedTo = assignedTo || null;
+        contact.updatedBy = req.user._id;
+        await contact.save();
+      }
+    }
+
     res.json({ message: 'Contacts assigned successfully' });
   } catch (error) {
     res.status(400).json({ message: error.message });
