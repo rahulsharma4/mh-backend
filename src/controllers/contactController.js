@@ -16,7 +16,9 @@ const getContacts = async (req, res) => {
       .populate('assignedTo', 'name email phone role')
       .populate('createdBy', 'name role')
       .populate('updatedBy', 'name role')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .limit(2000)
+      .lean();
     res.json(contacts);
   } catch (error) {
     res.status(500).json({ message: error.message });
