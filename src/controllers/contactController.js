@@ -6,20 +6,87 @@ const mongoose = require('mongoose');
 // @access  Private
 const getContacts = async (req, res) => {
   try {
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 50;
+    const skip = (page - 1) * limit;
+
     let query = {};
     if (req.user.role === 'admin') {
-      query = { owner: req.user._id };
+      query.owner = req.user._id;
     } else {
-      query = { assignedTo: req.user._id };
+      query.assignedTo = req.user._id;
     }
-    const contacts = await Contact.find(query)
+
+    // Filters from req.query
+    if (req.query.search) {
+      const searchRegex = new RegExp(req.query.search, 'i');
+      query.$or = [
+        { name: searchRegex },
+        { phone: searchRegex },
+        { address: searchRegex }
+      ];
+    }
+
+    if (req.query.telecallerSearchTerm) {
+      const User = require('../models/userModel');
+      const telecallers = await User.find({ name: new RegExp(req.query.telecallerSearchTerm, 'i'), role: 'telecaller' }).select('_id');
+      const telecallerIds = telecallers.map(t => t._id);
+      if (!query.assignedTo) {
+         query.assignedTo = { $in: telecallerIds };
+      }
+    }
+
+    if (req.query.status && req.query.status !== 'All') {
+      query.status = req.query.status;
+    }
+    if (req.query.monthlyBill && req.query.monthlyBill !== 'All') {
+      query.monthlyBill = req.query.monthlyBill;
+    }
+    if (req.query.fromDate || req.query.toDate) {
+      query.createdAt = {};
+      if (req.query.fromDate) query.createdAt.$gte = new Date(req.query.fromDate);
+      if (req.query.toDate) {
+        const toDate = new Date(req.query.toDate);
+        toDate.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = toDate;
+      }
+      // Cleanup if empty
+      if (Object.keys(query.createdAt).length === 0) delete query.createdAt;
+    }
+
+    // Sorting
+    let sortObj = { createdAt: -1 };
+    if (req.query.sortBy) {
+      sortObj = { [req.query.sortBy]: req.query.sortDir === 'asc' ? 1 : -1 };
+    }
+
+    // Optional override to fetch all (for export, auto-assign, etc)
+    const fetchAll = req.query.fetchAll === 'true';
+
+    const totalContacts = await Contact.countDocuments(query);
+    
+    let contactsQuery = Contact.find(query)
       .populate('assignedTo', 'name email phone role')
       .populate('createdBy', 'name role')
       .populate('updatedBy', 'name role')
-      .sort({ createdAt: -1 })
-      .limit(2000)
-      .lean();
-    res.json(contacts);
+      .sort(sortObj);
+
+    if (!fetchAll) {
+      contactsQuery = contactsQuery.skip(skip).limit(limit);
+    }
+
+    const contacts = await contactsQuery.lean();
+
+    if (fetchAll) {
+      res.json(contacts);
+    } else {
+      res.json({
+        contacts: contacts,
+        totalContacts,
+        totalPages: Math.ceil(totalContacts / limit),
+        currentPage: page
+      });
+    }
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -95,8 +162,18 @@ const bulkCreateContacts = async (req, res) => {
       };
     });
 
-    const createdContacts = await Contact.insertMany(formattedContacts);
-    res.status(201).json(createdContacts);
+    try {
+      const createdContacts = await Contact.insertMany(formattedContacts, { ordered: false });
+      res.status(201).json(createdContacts);
+    } catch (insertError) {
+      if (insertError.name === 'BulkWriteError' && insertError.insertedDocs) {
+        return res.status(201).json({
+          message: `Inserted ${insertError.insertedDocs.length} out of ${formattedContacts.length} contacts successfully. Some failed validation or were duplicates.`,
+          createdContacts: insertError.insertedDocs
+        });
+      }
+      throw insertError;
+    }
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
