@@ -166,10 +166,11 @@ const bulkCreateContacts = async (req, res) => {
       const createdContacts = await Contact.insertMany(formattedContacts, { ordered: false });
       res.status(201).json(createdContacts);
     } catch (insertError) {
-      if (insertError.name === 'BulkWriteError' && insertError.insertedDocs) {
+      if (insertError.code === 11000 || insertError.name === 'BulkWriteError' || insertError.name === 'MongoBulkWriteError') {
+        const insertedCount = insertError.insertedDocs ? insertError.insertedDocs.length : (insertError.result && insertError.result.nInserted ? insertError.result.nInserted : 0);
         return res.status(201).json({
-          message: `Inserted ${insertError.insertedDocs.length} out of ${formattedContacts.length} contacts successfully. Some failed validation or were duplicates.`,
-          createdContacts: insertError.insertedDocs
+          message: `Processed ${formattedContacts.length} contacts. Inserted ${insertedCount} new contacts. Duplicates were ignored.`,
+          createdContacts: insertError.insertedDocs || []
         });
       }
       throw insertError;
